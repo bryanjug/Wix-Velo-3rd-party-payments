@@ -1,0 +1,48 @@
+import { GetCart } from 'backend/checkout';
+import wixWindow from 'wix-window';
+import wixStores from 'wix-stores';
+
+$w.onReady(function () {
+    let cart;
+
+    $w('#checkout').hide();
+    $w('#mobileCheckOut').hide();
+    
+    GetCart()
+        .then(function (params) {
+            cart = params;
+            console.log(cart);
+
+            if (cart.lineItems.length === 0) {
+                $w('#checkout').hide();
+                $w('#mobileCheckOut').hide();
+            } else {
+                if (wixWindow.formFactor === "Mobile") {
+                    $w('#mobileCheckOut').show();
+                    $w('#checkout').hide();
+                } else {
+                    $w('#mobileCheckOut').hide();
+                    $w('#checkout').show();
+                }
+            }
+        })
+        .catch(function (error) {
+            console.error(error);
+        });
+
+    wixStores.onCartChanged((cart) => {
+        if (cart.lineItems.length === 0) {
+                $w('#checkout').hide();
+                $w('#mobileCheckOut').hide();
+            } else {
+                if (wixWindow.formFactor === "Mobile") {
+                    $w('#mobileCheckOut').show();
+                    $w('#checkout').hide();
+                } else {
+                    $w('#mobileCheckOut').hide();
+                    $w('#checkout').show();
+                }
+            
+        }
+    });
+});
