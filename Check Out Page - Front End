@@ -1,0 +1,432 @@
+import { GetCart, SendData, CreateOrder, CreateCustomer } from 'backend/checkout';
+import wixLocation from 'wix-location';
+import wixWindowFrontend from 'wix-window-frontend';
+// import { myUpdateCurrentCartFunction } from 'backend/updateCart';
+//broken backend function
+import { myEstimateCurrentCartTotalsFunction } from 'backend/estimateCurrentCartTotals';
+
+
+$w.onReady(function () {
+    let testing = false;
+
+    let jsonBody;
+    let line_items = [];
+    let cart;
+    let description = "";
+    let billingFirstName, billingLastName, billingStreet, billingStreet2, billingCity, billingZip, billingCountry, billingState;
+    let billing = $w("#billingFirstName, #billingLastName, #billingStreet, #billingStreet2, #billingCity, #billingZip, #billingCountry, #billingState, #continueBilling");
+    billing.collapse();
+    let shipping = $w("#billingFirstName, #billingLastName, #billingStreet, #billingStreet2, #billingCity, #billingZip, #billingCountry, #billingState, #continueShipping");
+    let checked = true;
+    let message = "";
+    let repeaterData = [];
+    let message2 = "";
+    $w("#address, #edit").collapse();
+    $w("#loader").show();
+    $w('#group1, #group2, #mobileLoader, #noCart, #testing, #error').hide()
+    $w("#discount, #message, #total, #subtotal, #tax, #delivery, #message2").text = "";
+    $w("#buyerNote").text = "Buyer's Note: ";
+
+    function CheckTest() {
+        if (testing === true) {
+            $w('#checkoutStrip, #mainTitle, #noCart').hide()
+            $w('#testing').show()
+        }
+        if (testing === false) {
+            $w('#checkoutStrip, #mainTitle').show()
+            $w('#testing').hide()
+        }
+    }
+    CheckTest()
+
+    $w("#viewTest").onClick(async (event) => {
+        $w('#checkoutStrip, #mainTitle').show()
+    })
+
+    //populate cart line items data into text elements in a repeater
+    $w('#cartRepeater').onItemReady(($item, itemData) => {
+        // Apply item data to page elements
+        $item('#title').text = itemData.title;
+        $item('#quantity').text = itemData.quantity;
+        $item('#options').text = itemData.options;
+        //$item('#image').src = itemData.src;
+        $item('#price').text = itemData.price;
+    });
+
+    //checks if the checkbox is enabled and changes the shipping / billing address input
+    $w("#billingCheck").onChange((event) => {
+        if ($w('#billingCheck').checked) {
+            checked = true
+            billing.collapse();
+
+            //changes the billing address
+            billingFirstName = $w('#firstName').value, billingLastName = $w('#lastName').value, billingStreet = $w('#street').value, billingStreet2 = $w('#street2').value, billingCity = $w('#city').value, billingZip = $w('#zip').value, billingCountry = $w('#country').value, billingState = $w('#state').value;
+        } else {
+            billing.expand();
+
+            checked = false;
+
+            billingFirstName = $w('#billingFirstName').value, billingLastName = $w('#billingLastName').value, billingStreet = $w('#billingStreet').value, billingStreet2 = $w('#billingStreet2').value, billingCity = $w('#billingCity').value, billingZip = $w('#billingZip').value, billingCountry = $w('#billingCountry').value, billingState = $w('#billingState').value;
+        }
+    });
+
+    let billingInfo = {
+        firstName: $w('#firstName').value,
+        lastName: $w('#lastName').value,
+        email: $w('#email').value,
+        street: $w('#street').value,
+        street2: $w('#street2').value,
+        city: $w('#city').value,
+        zip: $w('#zip').value,
+        country: $w('#country').value,
+        state: $w('#state').value,
+        phone: $w('#phone').value,
+        card: $w('#card').value,
+        expiryMonth: $w('#expiryMonth').value,
+        expiryYear: $w('#expiryYear').value,
+        cvv: $w('#cvv').value,
+    }
+
+    billingInfo.billingFirstName = checked === true ? $w('#firstName').value : $w('#billingFirstName').value;
+    billingInfo.billingLastName = checked === true ? $w('#lastName').value : $w('#billingLastName').value;
+    billingInfo.billingStreet = checked === true ? $w('#street').value : $w('#billingStreet').value;
+    billingInfo.billingStreet2 = checked === true ? $w('#street2').value : $w('#billingStreet2').value;
+    billingInfo.billingCity = checked === true ? $w('#city').value : $w('#billingCity').value;
+    billingInfo.billingZip = checked === true ? $w('#zip').value : $w('#billingZip').value;
+    billingInfo.billingCountry = checked === true ? $w('#country').value : $w('#billingCountry').value;
+    billingInfo.billingState = checked === true ? $w('#state').value : $w('#billingState').value;
+
+    //edit shipping address button
+    // $w("#edit").onClick(function () {
+    //     $w('#firstName, #lastName, #email, #street, #street2, #city, #state, #zip, #country, #phone, #continueShipping').expand();
+    //     $w('#address').collapse();
+    //     $w('#edit').collapse();
+
+    //grabs cart data on page load
+    GetCart()
+    .then(function (params) {
+        $w("#error").hide()
+        cart = params
+
+        console.log(cart)
+
+        //estimate taxes button
+        
+        //     $w('#firstName, #lastName, #email, #street, #street2, #city, #state, #zip, #country, #phone, #continueShipping').collapse();
+
+        //     let shippingAddressText = `${$w('#street').value}\n${$w('#street2').value ? $w('#street2').value + '\n' : ''}${$w('#city').value}, ${$w('#state').value} ${$w('#zip').value}\nUS\n\n`;
+
+        //     $w('#address').text = shippingAddressText;
+        //     $w('#address').expand();
+        //     $w('#edit').expand();
+        // });
+
+        //check if any cart items
+        if (cart.lineItems.length === 0) {
+            if (wixWindowFrontend.formFactor === "Mobile") {
+                $w("#mobileLoader").hide()
+            } else {
+                $w("#loader").hide()
+            }
+            $w("#group1").hide()
+            $w("#group2").hide()
+            $w("#noCart").show()
+        } else {
+            //cart totals (UPDATE THESE IF CONSOLE LOG WORKS)
+            $w("#subtotal").text = "$" + cart.totals.subtotal.toFixed(2);
+            $w("#delivery").text = "$" + cart.totals.shipping.toFixed(2);
+            $w("#tax").text = "$" + cart.totals.tax.toFixed(2);
+            $w("#total").text = "$" + cart.totals.total.toFixed(2);
+            $w("#discount").text = "-$" + cart.totals.discount.toFixed(2);
+
+            if (cart.buyerNote) {
+                $w("#buyerNote").text = "Buyer's Note: " + cart.buyerNote;
+            }
+
+            //gets cart listItems and makes repeaterData and gives data to jsonBody for the API
+            for (var i = 0; i < cart.lineItems.length; i++) {
+                description += "PRODUCT #" + (i + 1) + ": ([$" + cart.lineItems[i].totalPrice + "] [QTY: " + cart.lineItems[i].quantity + "] [" + cart.lineItems[i].name + '] [' + cart.lineItems[i].options[0].option + "] [" + cart.lineItems[i].options[0].selection + ']), '
+                repeaterData.push({
+                    _id: `${cart.lineItems[i].id}`,
+                    title: cart.lineItems[i].name,
+                    options: cart.lineItems[i].options[0].option + ", " + cart.lineItems[i].options[0].selection,
+                    src: cart.lineItems[i].mediaItem.src,
+                    price: `$${cart.lineItems[i].totalPrice.toFixed(2)}`,
+                    quantity: `${cart.lineItems[i].quantity}`
+                });
+                //create line items for jsonBody
+                line_items.push({
+                    "name": cart.lineItems[i].name,
+                    "description": description,
+                    "cost": cart.lineItems[i].price,
+                    "quantity": cart.lineItems[i].quantity,
+                    // "src": cart.lineItems[i].mediaItem.src
+                });
+            }
+
+            $w('#cartRepeater').data = repeaterData;
+            //show / hide loading spinner & page elements once cart data loads
+            $w("#loader").hide()
+            $w("#group1").show()
+            $w("#group2").show()
+        }
+    })
+    .catch(function (error) {
+        if (wixWindowFrontend.formFactor === "Mobile") {
+                $w("#mobileLoader").hide()
+            } else {
+                $w("#loader").hide()
+            }
+            $w("#group1").hide()
+            $w("#group2").hide()
+            $w("#error").show()
+            $w("#error").text = error;
+            $w("#testing").text = "Something went wrong. Please try again later."
+
+        if (wixWindowFrontend.formFactor === "Mobile") {
+            $w("#mobileLoader").hide()
+        } else {
+            $w("#loader").hide()
+        }
+    });
+
+    $w("#continueShipping").onClick(async (event) => {
+        const estimateOptions = {
+            "selectedShippingOption": {
+                "code": "standard_us_shipping"
+            },
+            "shippingAddress": {
+                "addressLine1": "235 West 23rd Street",
+                "addressLine2": "3rd floor",
+                "city": "New York",
+                "country": "US",
+                "postalCode": "10011",
+                "streetAddress": {
+                "name": "West 23rd Street",
+                "number": "235"
+                },
+                "subdivision": "US-NY"
+            },
+            "billingAddress": {
+                "addressLine1": "235 West 23rd Street",
+                "addressLine2": "3rd floor",
+                "city": "New York",
+                "country": "US",
+                "postalCode": "10011",
+                "streetAddress": {
+                "name": "West 23rd Street",
+                "number": "235"
+                },
+                "subdivision": "US-NY"
+            }
+        };
+
+        myEstimateCurrentCartTotalsFunction(estimateOptions)
+        .then((estimatedCartTotals) => {
+            console.log('Success! Cart totals estimated:', estimatedCartTotals);
+            // return estimatedCartTotals;
+        })
+        .catch((error) => {
+            console.error(error);
+            // Handle the error
+        });
+    });
+
+    //clicking buy now button sends data to DataFi API
+    $w("#buyNow").onClick(async (event) => {
+        message = ""
+        message2 = ""
+
+        if (wixWindowFrontend.formFactor === "Mobile") {
+            $w("#mobileLoader").show()
+        } else {
+            $w("#loader").show()
+        }
+
+        const jsonBody = {
+            amount: cart.totals.total,
+            amount_details: {
+                tax: cart.totals.tax,
+                shipping: cart.totals.shipping,
+                discount: cart.totals.discount
+            },
+            // amount: .01,
+            // amount_details: {
+            //     tax: 0,
+            //     shipping: 0,
+            //     discount: 0
+            // },
+            name: billingInfo.firstName + " " + billingInfo.lastName,
+            transaction_details: {
+                description: "[TOTAL: " + (cart.totals.weight || 0) + cart.weightUnit + "] " + (description || ""),
+                order_number: cart._id || ""
+            },
+            line_items: line_items || [],
+            billing_info: {
+                first_name: billingInfo.billingFirstName || "",
+                last_name: billingInfo.billingLastName || "",
+                street: billingInfo.billingStreet || "",
+                street2: billingInfo.billingStreet2 || "",
+                state: billingInfo.billingState || "",
+                city: billingInfo.billingCity || "",
+                zip: billingInfo.billingZip || "",
+                country: billingInfo.billingCountry || ""
+            },
+            shipping_info: {
+                first_name: billingInfo.firstName || "",
+                last_name: billingInfo.lastName || "",
+                street: billingInfo.street || "",
+                street2: billingInfo.street2 || "",
+                state: billingInfo.state || "",
+                city: billingInfo.city || "",
+                zip: billingInfo.zip || "",
+                country: billingInfo.country || "",
+                phone: billingInfo.phone || ""
+            },
+            custom_fields: {
+                custom1: cart.buyerNote || ""
+            },
+            avs_address: billingInfo.billingStreet || "",
+            avs_zip: billingInfo.billingZip || "",
+            expiry_month: parseInt(billingInfo.expiryMonth) || 0,
+            expiry_year: parseInt(billingInfo.expiryYear) || 0,
+            cvv2: billingInfo.cvv || "",
+            card: billingInfo.card || "",
+            customer: billingInfo.email
+                ? {
+                    email: billingInfo.email,
+                    send_receipt: true
+                }
+                : undefined
+        };
+
+        console.log(jsonBody)
+
+        let required = { //first & last name, shipping info, card holder name
+            firstName: $w('#firstName').value,
+            lastName: $w('#lastName').value,
+            street: $w('#street').value,
+            city: $w('#city').value,
+            zip: $w('#zip').value,
+            country: $w('#country').value,
+            state: $w('#state').value,
+        } 
+
+        const validInputsCheck = Object.values(required).every(value => !!value);
+
+        if (validInputsCheck) {
+            console.log("Billing information is valid.");
+
+            //send data to datafi
+            const res = await SendData(jsonBody)
+
+            console.log(res)
+
+            if (res) {
+                //Accepted
+                if (res.status_code === "A") {
+                    //create order after connection is made
+                    const order = await CreateOrder(cart, jsonBody)
+                    const customer = await CreateCustomer(jsonBody, res)
+
+                    console.log(order)
+
+                    if (order && order._id) {
+                        message = "Order created successfully.";
+                        message2 = "";
+
+                        console.log(message)
+
+                        wixLocation.to(`/order-success?number=${order.number}`);
+                    } else {
+                        message = "Error: Failed to create order. Please contact the site owner.";
+                        message2 = "";
+                        console.log(message)
+
+                        if (wixWindowFrontend.formFactor === "Mobile") {
+                            $w("#mobileLoader").hide()
+                        } else {
+                            $w("#loader").hide()
+                        }
+                    }
+                    //Declined
+                } else if (res.status_code === "D") {
+                    if (wixWindowFrontend.formFactor === "Mobile") {
+                        $w("#mobileLoader").hide()
+                    } else {
+                        $w("#loader").hide()
+                    }
+                    //message = res.avs_result + "\n" + res.error_message;
+                    message = res.status + ": " + res.error_message;
+                    message2 = "";
+                    console.log(res.status, res.error_message, res.error_details, res.avs_result_code, res.avs_result, res.cvv2_result_code, res.cvv2_result)
+                    //Error
+                } else if (res.status_code === "E") {
+                    if (wixWindowFrontend.formFactor === "Mobile") {
+                        $w("#mobileLoader").hide()
+                    } else {
+                        $w("#loader").hide()
+                    }
+                    //message = res.avs_result + "\n" + res.error_message;
+                    message = res.status + ": " + res.error_message;
+                    message2 = "";
+                    console.log(res.status, res.error_message, res.error_details, res.avs_result_code, res.avs_result, res.cvv2_result_code, res.cvv2_result)
+                } else {
+                    if (wixWindowFrontend.formFactor === "Mobile") {
+                        $w("#mobileLoader").hide()
+                    } else {
+                        $w("#loader").hide()
+                    }
+                    // Handle non-200 responses here
+                    console.log("Non 200 Response: (User input wrong info for DataFi)", res.status, res.error_message, res.error_details, res.avs_result_code, res.avs_result, res.cvv2_result_code, res.cvv2_result)
+
+                    message = res.error_message + "\n";
+                    message2 = ""
+
+                    if (res.error_details) {
+                        for (const key in res.error_details) {
+                            if (Object.prototype.hasOwnProperty.call(res.error_details, key)) {
+                                const errorMessages = res.error_details[key];
+                                errorMessages.forEach(errorMessage => {
+                                    let error = "";
+                                    error = key;
+                                    
+                                    if (error.includes("_")) {
+                                        let newError = error.replace(/_/g, ' ');
+
+                                        let msg = (newError.charAt(0).toUpperCase() + newError.slice(1)) + ": " + errorMessage + "\n"
+                                        message2 += msg
+                                    } else if (error === "cvv2") { 
+                                        let newError = "CVV"
+
+                                        let msg = (newError.charAt(0).toUpperCase() + newError.slice(1)) + ": " + errorMessage + "\n"
+                                        message2 += msg
+                                    } else {
+                                        let msg = (error.charAt(0).toUpperCase() + error.slice(1)) + ": " + errorMessage + "\n"
+                                        message2 += msg
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            } else {
+                console.log("Empty Response from DataFi")
+                message = "Error: Something went wrong. Please contact the site owner."
+                message2 = "";
+            }
+        } else {
+            message2 += "You need to fill in the required shipping information."
+            console.log("You need to fill in the required shipping information.");
+        }
+        
+        $w("#message").text = message;
+        $w("#message2").text = message2;
+
+        if (wixWindowFrontend.formFactor === "Mobile") {
+            $w("#mobileLoader").hide()
+        } else {
+            $w("#loader").hide()
+        }
+    });
+});
