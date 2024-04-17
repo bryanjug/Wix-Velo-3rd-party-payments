@@ -1,0 +1,12 @@
+import { currentCart } from 'wix-ecom-backend';
+
+export async function myUpdateCurrentCartFunction(options) {
+  try {
+    const updatedCurrentCart = await currentCart.updateCurrentCart(options);
+    console.log('Success! Updated current cart:', updatedCurrentCart);
+    return updatedCurrentCart;
+  } catch (error) {
+    console.error(error);
+    // Handle the error
+  }
+}
