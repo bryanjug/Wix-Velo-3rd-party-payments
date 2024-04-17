@@ -1,0 +1,16 @@
+/**************************************
+ * Backend code - my-backend-file.jsw *
+ *************************************/
+
+import { currentCart } from 'wix-ecom-backend';
+
+export async function myEstimateCurrentCartTotalsFunction(estimateOptions) {
+  try {
+    const estimatedCartTotals = await currentCart.estimateCurrentCartTotals(estimateOptions);
+    console.log('Success! Cart totals estimated:', estimatedCartTotals);
+    return estimatedCartTotals;
+  } catch (error) {
+    console.error(error);
+    // Handle the error
+  }
+}
