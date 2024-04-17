@@ -1,0 +1,234 @@
+import wixStores from 'wix-stores-backend';
+import { getSecret } from 'wix-secrets-backend';
+import { currentCart } from 'wix-ecom-backend';
+import { fetch } from 'wix-fetch';
+import { cart } from 'wix-ecom-backend';
+
+let testing = true;
+
+async function getSecretKey() {
+  let secretKey;
+
+  if (testing === true) {
+    secretKey = await getSecret("DataFi-SandBox-API");
+  }
+  if (testing === false) {
+    secretKey = await getSecret("Official-DataFi-Cart-API");
+  }
+
+  return { secretKey };
+}
+
+export async function SendData(jsonBody) {
+  let endPoint;
+
+  console.log(endPoint)
+  
+  if (testing === true) {
+     endPoint = "https://api.sandbox.datafipay.com/api/v2/transactions/charge";
+  }
+  if (testing === false) {
+     endPoint = "https://api.datafipay.com/api/v2/transactions/charge";
+  }
+  
+  try {
+    const { secretKey } = await getSecretKey();
+
+    const httpResponse = await fetch(endPoint, {
+      "mode": "cors",
+      "credentials": "include",
+      "method": "post",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic " + btoa(secretKey + ":" + 6127),
+      },
+      "body": JSON.stringify(jsonBody)
+    });
+    
+    console.log("httpResponse", httpResponse)
+
+    return httpResponse.json()
+  } catch (error) {
+    console.error("Failed to:", error);
+  }
+}
+
+export async function CreateCustomer(jsonBody, res) {
+  let endPoint;
+
+  if (testing === true) {
+     endPoint = "https://api.sandbox.datafipay.com/api/v2/customers/create-from-transaction";
+  }
+  if (testing === false) {
+     endPoint = "https://api.datafipay.com/api/v2/customers/create-from-transaction";
+  }
+
+  let customerData = {
+    "reference_number": res.transaction.id || "",
+    // Use jsonBody.name if it exists, otherwise use an empty string
+    "identifier": jsonBody.name || "",
+    "first_name": jsonBody.billing_info.first_name || "",
+    "last_name": jsonBody.billing_info.last_name || "",
+    // Use jsonBody.customer.email if it exists, otherwise use an empty string
+    "email": jsonBody.customer && jsonBody.customer.email || "",
+    // Use jsonBody.shipping_info.phone if it exists, otherwise use an empty string
+    "phone": jsonBody.shipping_info && jsonBody.shipping_info.phone || "",
+    "billing_info": {
+      "first_name": jsonBody.billing_info.first_name || "",
+      "last_name": jsonBody.billing_info.last_name || "",
+      "street": jsonBody.billing_info.street || "",
+      "street2": jsonBody.billing_info.street2 || "",
+      "state": jsonBody.billing_info.state || "",
+      "city": jsonBody.billing_info.city || "",
+      "zip": jsonBody.billing_info.zip || "",
+      "country": jsonBody.billing_info.country || ""
+    },
+    "shipping_info": {
+      "first_name": jsonBody.shipping_info.first_name || "",
+      "last_name": jsonBody.shipping_info.last_name || "",
+      "street": jsonBody.shipping_info.street || "",
+      "street2": jsonBody.shipping_info.street2 || "",
+      "state": jsonBody.shipping_info.state || "",
+      "city": jsonBody.shipping_info.city || "",
+      "zip": jsonBody.shipping_info.zip || "",
+      "country": jsonBody.shipping_info.country || "",
+      // Use jsonBody.shipping_info.phone if it exists, otherwise use an empty string
+      "phone": jsonBody.shipping_info && jsonBody.shipping_info.phone || ""
+    }
+  };
+
+  try {
+    const { secretKey } = await getSecretKey();
+
+    const httpResponse = await fetch(endPoint, {
+      "mode": "cors",
+      "credentials": "include",
+      "method": "post",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic " + btoa(secretKey + ":" + 6127),
+      },
+      "body": JSON.stringify(customerData)
+    });
+    
+    console.log("httpResponse", httpResponse)
+    
+    return httpResponse.json()
+  } catch (error) {
+    console.error("Failed to:", error);
+  }
+}
+
+export async function GetCart() {
+  let cart = await wixStores.getCurrentCart();
+  return cart;
+}
+
+export async function CreateOrder(cartData, jsonBody) {
+  const cart = await currentCart.getCurrentCart();
+  let lineItems = [];
+
+  for (var i = 0; i < cartData.lineItems.length; i++) {
+    let item = {
+      "productId": cartData.lineItems[i].productId || "",
+      //"lineItemType": cartData.lineItems[i].lineItemType,
+      "lineItemType": "PHYSICAL",
+      "mediaItem": {
+        "src": cart.lineItems[i].image,
+        // "src": cartData.lineItems[i].mediaItem.src[0],
+        // "altText": "This is a description of the image"
+      },
+      "name": cartData.lineItems[i].name || "",
+      "options": cartData.lineItems[i].options ? [{
+        "option": cartData.lineItems[i].options[0].option || "",
+        "selection": cartData.lineItems[i].options[0].selection || ""
+      }] : [],
+      "quantity": cartData.lineItems[i].quantity || 0,
+      "weight": cartData.lineItems[i].weight || 0,
+      "priceData": {
+        "price": cartData.lineItems[i].priceData.totalPrice || 0,
+      },
+      "sku": cartData.lineItems[i].sku || "",
+    };
+
+    lineItems.push(item)
+  }
+  
+  let fullOrder = {
+    "cartId": jsonBody.transaction_details.order_number || "",
+    // Define billingInfo conditionally
+    "billingInfo": {
+      "address": {
+        "formatted": jsonBody.billing_info.street + ", " + jsonBody.billing_info.street2 + "\n" + jsonBody.billing_info.city + ", " + jsonBody.billing_info.state + ", " + jsonBody.billing_info.zip + "\n" + jsonBody.billing_info.country,
+        "city": jsonBody.billing_info.city || "",
+        "country": jsonBody.billing_info.country || "",
+        "addressLine": jsonBody.billing_info.street || "",
+        "addressLine2": jsonBody.billing_info.street2 || "",
+        "postalCode": jsonBody.billing_info.zip || "",
+        "subdivision": jsonBody.billing_info.state || ""
+      },
+      "lastName": jsonBody.billing_info.last_name || "",
+      "firstName": jsonBody.billing_info.first_name || "",
+    },
+    "totals": {
+      "discount": cartData.totals.discount || 0,
+      "subtotal": cartData.totals.subtotal || 0,
+      "tax": cartData.totals.tax || 0,
+      "shipping": cartData.totals.shipping || 0,
+      "total": cartData.totals.total || 0,
+    },
+    "channelInfo": {
+      "type": "WEB",
+    },
+    "paymentStatus": "PAID",
+    // Define shippingInfo conditionally
+    "shippingInfo": {
+      "shipmentDetails": {
+        "address": {
+          "formatted": jsonBody.shipping_info.street + ", " + jsonBody.shipping_info.street2 + "\n" + jsonBody.shipping_info.city + ", " + jsonBody.shipping_info.state + ", " + jsonBody.shipping_info.zip + "\n" + jsonBody.shipping_info.country,
+          "city": jsonBody.shipping_info.city || "",
+          "country": jsonBody.shipping_info.country || "",
+          "addressLine": jsonBody.shipping_info.street || "",
+          "addressLine2": jsonBody.shipping_info.street2 || "",
+          "postalCode": jsonBody.shipping_info.zip || "",
+          "subdivision": jsonBody.shipping_info.state || ""
+        },
+        "lastName": jsonBody.shipping_info.last_name || "",
+        "firstName": jsonBody.shipping_info.first_name || "",
+        // Use jsonBody.customer.email if it exists, otherwise use an empty string
+        "email": jsonBody.customer.email || "",
+        // Use jsonBody.shipping_info.phone if it exists, otherwise use an empty string
+        "phone": jsonBody.shipping_info.phone || "",
+        "shipmentPriceData": {
+          "price": jsonBody.amount_details.shipping || 0,
+        }
+      }
+    },
+    lineItems: lineItems,
+    "customField": {
+      "title": "Notes for delivery",
+      "translatedTitle": "Notas de entrega",
+      "value": jsonBody.custom_fields.custom1 || ""
+    },
+    // Define discount conditionally
+    "discount": cartData.appliedCoupon
+      ? {
+          "appliedCoupon": {
+            "code": cartData.appliedCoupon.code || "",
+            "couponId": cartData.appliedCoupon.couponId || "",
+            "name": cartData.appliedCoupon.name || "",
+          }
+        }
+      : undefined, // Conditionally include "discount" property
+  };
+
+  console.log("fullOrder", fullOrder);
+
+  console.log("Attempting to create order");
+
+  const order = await wixStores.createOrder(fullOrder)
+
+  console.log("order", order)
+
+  return order;
+}
